@@ -28,7 +28,7 @@ function inRange(x1, y1, x2, y2, range)
 end
 
 -- Decides the next action based on player proximity, energy, and health.
-function decideNextAction()
+function makeDecision()
   local player = LatestGameState.Players[ao.id]
   local targetInRange, weakestTarget, minHealth = false, nil, math.huge
 
