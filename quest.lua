@@ -27,15 +27,18 @@ function inRange(x1, y1, x2, y2, range)
     return math.abs(x1 - x2) <= range and math.abs(y1 - y2) <= range
 end
 
+-- This function makes decisions for the player based on game state
 function makeDecision()
     local player = LatestGameState.Players[ao.id]
     local targetInRange, weakestTarget, minHealth = false, nil, math.huge
 
+    -- Iterate through all players to find the weakest target within attack range
     for target, state in pairs(LatestGameState.Players) do
         if target ~= ao.id and inRange(player.x, player.y, state.x, state.y, player.attackRange) then
             local distance = calculateDistance(player.x, player.y, state.x, state.y)
             local healthToDistanceRatio = state.health / distance
 
+            -- Update weakest target if current player has lower health and favorable health-to-distance ratio
             if state.health < minHealth and healthToDistanceRatio < 0.5 then
                 minHealth = state.health
                 weakestTarget = target
@@ -44,8 +47,10 @@ function makeDecision()
         end
     end
 
+    -- Calculate dynamic energy threshold based on player's health, opponent count, and base threshold
     local energyThreshold = calculateDynamicEnergyThreshold(player)
 
+    -- Decide whether to attack or move strategically
     if player.energy > energyThreshold and targetInRange and weakestTarget then
         print(colors.red .. "Weak player in range. Initiating attack on " .. weakestTarget .. "." .. colors.reset)
         ao.send({Target = Game, Action = "PlayerAttack", TargetID = weakestTarget, AttackEnergy = tostring(player.attackEnergy)})
@@ -56,10 +61,12 @@ function makeDecision()
     end
 end
 
+-- Calculates Euclidean distance between two points
 function calculateDistance(x1, y1, x2, y2)
     return math.sqrt((x2 - x1)^2 + (y2 - y1)^2)
 end
 
+-- Calculates dynamic energy threshold based on player's health, opponent count, and base threshold
 function calculateDynamicEnergyThreshold(player)
     local baseThreshold = player.attackEnergyThreshold
     local healthFactor = player.health / player.maxHealth
@@ -68,6 +75,7 @@ function calculateDynamicEnergyThreshold(player)
     return baseThreshold * healthFactor * (1 + opponentCount * 0.1)
 end
 
+-- Counts the number of opponents within attack range
 function countNearbyOpponents(player)
     local count = 0
     for _, state in pairs(LatestGameState.Players) do
@@ -78,11 +86,13 @@ function countNearbyOpponents(player)
     return count
 end
 
+-- Makes a strategic decision (e.g., random direction) for movement
 function makeStrategicDecision(player)
     local directionMap = {"Up", "Down", "Left", "Right", "UpRight", "UpLeft", "DownRight", "DownLeft"}
     local strategicIndex = math.random(#directionMap)
     return directionMap[strategicIndex]
 end
+
 
 -- Handler to print game announcements and trigger game state updates.
 Handlers.add(
