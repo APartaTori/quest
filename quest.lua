@@ -27,55 +27,62 @@ function inRange(x1, y1, x2, y2, range)
     return math.abs(x1 - x2) <= range and math.abs(y1 - y2) <= range
 end
 
--- Decides the next action based on player proximity, energy, and health.
 function makeDecision()
-  local player = LatestGameState.Players[ao.id]
-  local targetInRange, weakestTarget, minHealth = false, nil, math.huge
+    local player = LatestGameState.Players[ao.id]
+    local targetInRange, weakestTarget, minHealth = false, nil, math.huge
 
-  -- Find the weakest player within attack range
-  for target, state in pairs(LatestGameState.Players) do
-      if target ~= ao.id and inRange(player.x, player.y, state.x, state.y, player.attackRange) then
-          if state.health < minHealth then
-              minHealth = state.health
-              weakestTarget = target
-          end
-          targetInRange = true
-      end
-  end
+    for target, state in pairs(LatestGameState.Players) do
+        if target ~= ao.id and inRange(player.x, player.y, state.x, state.y, player.attackRange) then
+            local distance = calculateDistance(player.x, player.y, state.x, state.y)
+            local healthToDistanceRatio = state.health / distance
 
-  -- Attack if a weak player is in range and we have sufficient energy
-  if player.energy > player.attackEnergyThreshold and targetInRange and weakestTarget then
-    print(colors.red .. "Weak player in range. Initiating attack on " .. weakestTarget .. "." .. colors.reset)
-    ao.send({Target = Game, Action = "PlayerAttack", TargetID = weakestTarget, AttackEnergy = tostring(player.attackEnergy)})
-  else
-    -- Seek power-ups or move strategically if no weak player is in range or energy is low
-    local powerUpLocation = findNearestPowerUp(player.x, player.y)
-    if powerUpLocation and player.energy <= player.energyThreshold then
-      print(colors.green .. "Seeking power-up at " .. powerUpLocation .. "." .. colors.reset)
-      ao.send({Target = Game, Action = "PlayerMove", Destination = powerUpLocation})
-    else
-      print(colors.yellow .. "No player in range or insufficient energy. Moving strategically." .. colors.reset)
-      local strategicMove = determineStrategicMove(player.x, player.y)
-      ao.send({Target = Game, Action = "PlayerMove", Direction = strategicMove})
+            if state.health < minHealth and healthToDistanceRatio < 0.5 then
+                minHealth = state.health
+                weakestTarget = target
+            end
+            targetInRange = true
+        end
     end
-  end
-  InAction = false
+
+    local energyThreshold = calculateDynamicEnergyThreshold(player)
+
+    if player.energy > energyThreshold and targetInRange and weakestTarget then
+        print(colors.red .. "Weak player in range. Initiating attack on " .. weakestTarget .. "." .. colors.reset)
+        ao.send({Target = Game, Action = "PlayerAttack", TargetID = weakestTarget, AttackEnergy = tostring(player.attackEnergy)})
+    else
+        local strategicMove = makeStrategicDecision(player)
+        print(colors.yellow .. "No player in range or insufficient energy. Moving strategically: " .. strategicMove .. colors.reset)
+        ao.send({Target = Game, Action = "PlayerMove", Direction = strategicMove})
+    end
 end
 
--- Placeholder for finding the nearest power-up location
-function findNearestPowerUp(x, y)
-  -- Implementation for finding the nearest power-up
-  return "PowerUpLocation" -- Replace with actual logic to determine the location
+function calculateDistance(x1, y1, x2, y2)
+    return math.sqrt((x2 - x1)^2 + (y2 - y1)^2)
 end
 
--- Placeholder for determining a strategic move
-function determineStrategicMove(x, y)
-  -- Implementation for determining a strategic move
-  local directionMap = {"Up", "Down", "Left", "Right", "UpRight", "UpLeft", "DownRight", "DownLeft"}
-  local strategicIndex = math.random(#directionMap) -- Replace with actual strategy logic
-  return directionMap[strategicIndex]
+function calculateDynamicEnergyThreshold(player)
+    local baseThreshold = player.attackEnergyThreshold
+    local healthFactor = player.health / player.maxHealth
+    local opponentCount = countNearbyOpponents(player)
+
+    return baseThreshold * healthFactor * (1 + opponentCount * 0.1)
 end
 
+function countNearbyOpponents(player)
+    local count = 0
+    for _, state in pairs(LatestGameState.Players) do
+        if state ~= ao.id and inRange(player.x, player.y, state.x, state.y, player.attackRange) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function makeStrategicDecision(player)
+    local directionMap = {"Up", "Down", "Left", "Right", "UpRight", "UpLeft", "DownRight", "DownLeft"}
+    local strategicIndex = math.random(#directionMap)
+    return directionMap[strategicIndex]
+end
 
 -- Handler to print game announcements and trigger game state updates.
 Handlers.add(
